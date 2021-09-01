@@ -68,8 +68,14 @@ func (r *router) handle(c *Context) {
 	if n!=nil{
 		c.Params=params
 		key:=c.Method+"_"+n.pattern
-		r.handlers[key](c)
+		// 将路由匹配到的Handler添加到c.handlers中，执行c.Next()
+		c.handlers=append(c.handlers,r.handlers[key])
 	}else{
-		c.String(http.StatusNotFound, "404 NOT FOUND: %s \n", c.Path)
+		c.handlers=append(c.handlers,func(c *Context){
+			c.String(http.StatusNotFound, "404 NOT FOUND: %s \n", c.Path)
+		})
 	}
+	// 中间件编写过程中，可以增加前后处理，这样就可以在请求处理之前和之后添加处理阶段
+	// 开始执行
+	c.Next()
 }

@@ -3,6 +3,7 @@ package gee
 import (
 	"log"
 	"net/http"
+	"strings"
 )
 
 // 使用一个自定义的结构体取代标准库的默认实例，相当于一个拦截器，将所有的HTTP请求全部交与这个结构体处理
@@ -16,7 +17,15 @@ type Engine struct {
 type HandlerFunc func(ctx *Context)
 
 func (engine Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	// 首先判断请求用于哪些中间件，这里只使用前缀判断
+	var middlewares []HandlerFunc
+	for _,group:=range engine.groups{
+		if strings.HasPrefix(req.URL.Path,group.prefix){
+			middlewares=append(middlewares,group.middlewares...)
+		}
+	}
 	c := newContext(w, req)
+	c.handlers=middlewares
 	engine.router.handle(c)
 }
 
@@ -64,4 +73,8 @@ func (group *RouterGroup) GET(pattern string, handler HandlerFunc) {
 
 func (group *RouterGroup) POST(pattern string, handler HandlerFunc) {
 	group.addRoute("POST", pattern, handler)
+}
+// Use 将中间件应用到Group
+func (group *RouterGroup) Use(middlewares ...HandlerFunc) {
+	group.middlewares=append(group.middlewares,middlewares...)
 }
