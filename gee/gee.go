@@ -1,8 +1,10 @@
 package gee
 
 import (
+	"html/template"
 	"log"
 	"net/http"
+	"path"
 	"strings"
 )
 
@@ -13,10 +15,13 @@ type Engine struct {
 	*RouterGroup
 	router *router
 	groups []*RouterGroup // 存储所有的分组，将所有和路由的函数全部交给RouterGroup实现
+
+	htmlTemplates *template.Template // 将所有模板加载到内存
+	funcMap template.FuncMap // 自定义模板到渲染函数
 }
 type HandlerFunc func(ctx *Context)
 
-func (engine Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+func (engine *Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// 首先判断请求用于哪些中间件，这里只使用前缀判断
 	var middlewares []HandlerFunc
 	for _,group:=range engine.groups{
@@ -26,12 +31,21 @@ func (engine Engine) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	c := newContext(w, req)
 	c.handlers=middlewares
+	c.engine=engine
 	engine.router.handle(c)
 }
 
 //RUN 运行Server
 func (engine *Engine) RUN(addr string) error {
 	return http.ListenAndServe(addr, engine)
+}
+
+func (engine *Engine) SetFuncMap(funcMap template.FuncMap)  {
+	engine.funcMap=funcMap
+}
+
+func (engine *Engine) LoadHTMLGlob(pattern string)  {
+	engine.htmlTemplates=template.Must(template.New("").Funcs(engine.funcMap).ParseGlob(pattern))
 }
 
 // New 创建gee实例，使用GET方法添加路由，使用RUN启动Web服务
@@ -77,4 +91,24 @@ func (group *RouterGroup) POST(pattern string, handler HandlerFunc) {
 // Use 将中间件应用到Group
 func (group *RouterGroup) Use(middlewares ...HandlerFunc) {
 	group.middlewares=append(group.middlewares,middlewares...)
+}
+
+func (group *RouterGroup) createStaticHandler(relativePath string,fs http.FileSystem) HandlerFunc  {
+	absolutePath:=path.Join(group.prefix,relativePath)
+	fileSever:=http.StripPrefix(absolutePath,http.FileServer(fs))
+	return func(c *Context){
+		file:=c.Param("filepath")
+		if _,err:=fs.Open(file);err!=nil{
+			c.Status(http.StatusNotFound)
+			return
+		}
+		fileSever.ServeHTTP(c.Writer,c.Req)
+	}
+}
+
+// Static 将磁盘文件映射到relativePath
+func (group *RouterGroup) Static(relativePath string,root string)  {
+	handler:=group.createStaticHandler(relativePath,http.Dir(root))
+	urlPattern:=path.Join(relativePath,"/*filepath")
+	group.GET(urlPattern,handler)
 }
