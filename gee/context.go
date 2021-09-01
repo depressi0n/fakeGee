@@ -19,6 +19,7 @@ type Context struct {
 
 	Path   string
 	Method string
+	Params map[string]string
 
 	StatusCode int
 }
@@ -31,6 +32,11 @@ func newContext(w http.ResponseWriter, req *http.Request) *Context {
 		Method: req.Method,
 	}
 }
+
+func (c *Context) Param(key string) string {
+	return c.Params[key]
+}
+
 func (c *Context) PostForm(key string) string {
 	return c.Req.FormValue(key)
 }
@@ -50,23 +56,20 @@ func (c *Context) String(code int, format string, values ...interface{}) {
 	c.Status(code)
 	c.Writer.Write([]byte(fmt.Sprintf(format, values...)))
 }
-func (c *Context) JSON(code int,obj interface{}) {
-	c.SetHeader("Content-Type","application/json")
+func (c *Context) JSON(code int, obj interface{}) {
+	c.SetHeader("Content-Type", "application/json")
 	c.Status(code)
-	encoder:=json.NewEncoder(c.Writer)
-	if err:=encoder.Encode(obj);err!=nil{
-		http.Error(c.Writer,err.Error(),500)
+	encoder := json.NewEncoder(c.Writer)
+	if err := encoder.Encode(obj); err != nil {
+		http.Error(c.Writer, err.Error(), 500)
 	}
 }
-func (c *Context) Data(code int,data []byte){
+func (c *Context) Data(code int, data []byte) {
 	c.Status(code)
 	c.Writer.Write(data)
 }
-func (c *Context) HTML(code int,html string) {
-	c.SetHeader("Content-Type","text/html")
+func (c *Context) HTML(code int, html string) {
+	c.SetHeader("Content-Type", "text/html")
 	c.Status(code)
 	c.Writer.Write([]byte(html))
 }
-
-
-
