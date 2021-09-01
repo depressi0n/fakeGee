@@ -44,7 +44,9 @@ func (n *node) insert(pattern string,parts []string,height int)  {
 	child.insert(pattern,parts,height+1)
 }
 func (n *node) search(parts []string,height int) *node {
+	// 如果遇到了*的匹配则也说明已经是最后了
 	if len(parts)==height || strings.HasPrefix(n.part,"*"){
+		// 只有最后一层节点才会设置pattern，即如果匹配到的是中间层节点，可以利用pattern是否为空来判断匹配是否成功
 		if n.pattern==""{
 			return nil
 		}
